@@ -300,10 +300,37 @@
     letter-spacing: 0.12em;
     cursor: pointer;
     font-weight: 700;
-    transition: background 0.08s;
+    transition: background 0.08s, color 0.08s;
   }
   .btn:hover { background: var(--hot); color: var(--bg); }
   .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn.secondary {
+    background: transparent;
+    color: var(--paper);
+    border: 1px solid var(--paper);
+    padding: 11px 24px;
+  }
+  .btn.secondary:hover { background: var(--paper); color: var(--bg); border-color: var(--paper); }
+  .btn.success { background: var(--hot) !important; color: var(--bg) !important; }
+  .footer-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .btn-random {
+    width: 100%;
+    background: var(--hot);
+    color: var(--bg);
+    border: 0;
+    padding: 12px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.08s, color 0.08s, transform 0.08s;
+  }
+  .btn-random:hover { background: var(--paper); color: var(--bg); }
+  .btn-random:active { transform: translateY(1px); }
+  .btn-random .dice { display: inline-block; margin-right: 6px; }
 
   .btn-ghost {
     background: transparent;
@@ -490,6 +517,10 @@
           <button class="btn-cell" data-preset="vhs">VHS</button>
         </div>
       </div>
+
+      <div class="panel">
+        <button class="btn-random" id="random-btn" type="button"><span class="dice">◆</span>Randomize</button>
+      </div>
     </aside>
 
     <div class="stage">
@@ -541,6 +572,10 @@
           <span>Vignette</span>
           <div class="switch"></div>
         </div>
+        <div class="toggle" id="pfp-toggle">
+          <span>PFP mode (1:1)</span>
+          <div class="switch"></div>
+        </div>
       </div>
     </aside>
 
@@ -550,7 +585,10 @@
     <div class="footer-note">
       <b>ANALOG</b> // A tool for degrading digital images with intention. Drop any image anywhere.
     </div>
-    <button class="btn" id="download-btn">Download PNG</button>
+    <div class="footer-actions">
+      <button class="btn secondary" id="copy-btn" type="button">Copy PNG</button>
+      <button class="btn" id="download-btn" type="button">Download PNG</button>
+    </div>
   </footer>
 
 </div>
@@ -574,6 +612,7 @@ const state = {
   invert: false,
   scanlines: false,
   vignette: false,
+  pfp: false,
   threshold: 128,
   contrast: 0,
   scale: 1,
@@ -768,14 +807,29 @@ function render() {
   });
 }
 
-function doRender() {
+// Get effective source (with PFP square crop applied if enabled)
+function getEffectiveSource() {
   const src = state.sourceImage;
+  if (!state.pfp) return src;
+  const size = Math.min(src.width || src.naturalWidth, src.height || src.naturalHeight);
+  const sx = ((src.width || src.naturalWidth) - size) / 2;
+  const sy = ((src.height || src.naturalHeight) - size) / 2;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  c.getContext('2d').drawImage(src, sx, sy, size, size, 0, 0, size, size);
+  return c;
+}
+
+function doRender() {
+  const src = getEffectiveSource();
+  const srcW = src.width  || src.naturalWidth;
+  const srcH = src.height || src.naturalHeight;
   const stage = document.querySelector('.stage');
   const maxW = stage.clientWidth  - 64;
   const maxH = stage.clientHeight - 64;
-  const ratio = Math.min(maxW / src.width, maxH / src.height, 1);
-  const displayW = Math.max(4, Math.floor(src.width  * ratio));
-  const displayH = Math.max(4, Math.floor(src.height * ratio));
+  const ratio = Math.min(maxW / srcW, maxH / srcH, 1);
+  const displayW = Math.max(4, Math.floor(srcW * ratio));
+  const displayH = Math.max(4, Math.floor(srcH * ratio));
   const workW = Math.max(4, Math.floor(displayW / state.scale));
   const workH = Math.max(4, Math.floor(displayH / state.scale));
 
@@ -790,29 +844,121 @@ function doRender() {
 
   document.getElementById('r-mode').textContent   = 'MODE: ' + state.mode.toUpperCase();
   document.getElementById('r-pal').textContent    = 'PAL: '  + state.palette.toUpperCase();
-  document.getElementById('r-dim').textContent    = `${workW}×${workH}`;
+  document.getElementById('r-dim').textContent    = state.pfp ? `${workW}×${workH} · PFP` : `${workW}×${workH}`;
   document.getElementById('r-status').textContent = 'RENDERED';
 }
 
-// ─── DOWNLOAD (full-res) ────────────────────────────────────────
-function download() {
-  if (!state.sourceImage) return;
-  const src = state.sourceImage;
-  const workW = Math.max(4, Math.floor(src.width  / state.scale));
-  const workH = Math.max(4, Math.floor(src.height / state.scale));
+// ─── FINAL OUTPUT (used by download + copy) ─────────────────────
+function generateFinalOutput() {
+  if (!state.sourceImage) return null;
+  const src = getEffectiveSource();
+  const srcW = src.width  || src.naturalWidth;
+  const srcH = src.height || src.naturalHeight;
+  const outW = state.pfp ? 400 : srcW;
+  const outH = state.pfp ? 400 : srcH;
+  const workW = Math.max(4, Math.floor(outW / state.scale));
+  const workH = Math.max(4, Math.floor(outH / state.scale));
   const processed = processImage(src, workW, workH);
 
   const oc = document.createElement('canvas');
-  oc.width = src.width; oc.height = src.height;
+  oc.width = outW; oc.height = outH;
   const ocx = oc.getContext('2d');
   ocx.imageSmoothingEnabled = false;
-  ocx.drawImage(processed, 0, 0, src.width, src.height);
-  applyOverlays(ocx, src.width, src.height);
+  ocx.drawImage(processed, 0, 0, outW, outH);
+  applyOverlays(ocx, outW, outH);
+  return oc;
+}
 
+function download() {
+  const oc = generateFinalOutput();
+  if (!oc) return;
   const link = document.createElement('a');
-  link.download = `analog-${Date.now()}.png`;
+  link.download = `analog-${state.pfp ? 'pfp-' : ''}${Date.now()}.png`;
   link.href = oc.toDataURL('image/png');
   link.click();
+}
+
+async function copyToClipboard() {
+  const oc = generateFinalOutput();
+  if (!oc) return;
+  const btn = document.getElementById('copy-btn');
+  const original = 'Copy PNG';
+
+  const flash = (label, ms = 1600) => {
+    btn.textContent = label;
+    btn.classList.add('success');
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove('success');
+    }, ms);
+  };
+
+  // ── Attempt 1: modern Clipboard API with ClipboardItem
+  // Safari requires passing Promise<Blob> directly (not awaited) so the
+  // browser keeps the async work tied to the user gesture.
+  if (navigator.clipboard && window.ClipboardItem) {
+    try {
+      const blobPromise = new Promise(resolve => oc.toBlob(resolve, 'image/png'));
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blobPromise })
+      ]);
+      flash('COPIED ✓');
+      return;
+    } catch (e) {
+      console.warn('Clipboard image write failed:', e);
+      // fall through to open-in-tab fallback
+    }
+  }
+
+  // ── Fallback: open the image in a new tab so the user can long-press
+  // (mobile) or right-click (desktop) → copy/save. Works on file:// and
+  // browsers without ClipboardItem support.
+  try {
+    const dataUrl = oc.toDataURL('image/png');
+    const w = window.open();
+    if (w) {
+      w.document.write(
+        '<!doctype html><meta charset="utf-8">' +
+        '<title>ANALOG output — long press to copy or save</title>' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+        '<style>body{margin:0;background:#0a0a0a;display:flex;align-items:center;' +
+        'justify-content:center;min-height:100vh;padding:20px;box-sizing:border-box;' +
+        'font-family:ui-monospace,monospace;color:#6E6B65}' +
+        'img{max-width:100%;max-height:90vh;image-rendering:pixelated;' +
+        'box-shadow:0 0 60px rgba(255,107,0,0.12)}' +
+        '.hint{position:fixed;bottom:16px;left:0;right:0;text-align:center;' +
+        'font-size:11px;text-transform:uppercase;letter-spacing:0.15em}</style>' +
+        '<img src="' + dataUrl + '" alt="ANALOG output">' +
+        '<div class="hint">long press · right click → copy image</div>'
+      );
+      w.document.close();
+      flash('OPENED IN TAB ↗', 1800);
+    } else {
+      flash('POPUP BLOCKED', 2000);
+    }
+  } catch (e) {
+    console.warn('Fallback failed:', e);
+    flash('COPY FAILED', 1800);
+  }
+}
+
+// ─── RANDOMIZE ──────────────────────────────────────────────────
+function randomize() {
+  const modes = ['floyd', 'atkinson', 'bayer', 'halftone', 'threshold', 'noise'];
+  const pals  = ['mono', 'amber', 'green', 'red'];
+  const rand = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
+  state.mode      = modes[rand(0, modes.length - 1)];
+  state.palette   = pals[rand(0, pals.length - 1)];
+  state.threshold = rand(80, 180);
+  state.contrast  = rand(-15, 60);
+  state.scale     = rand(1, 4);
+  state.grain     = rand(0, 40);
+  state.invert    = Math.random() < 0.25;
+  state.scanlines = Math.random() < 0.35;
+  state.vignette  = Math.random() < 0.35;
+  // don't randomize pfp — it's user intent
+  syncUI();
+  render();
 }
 
 // ─── SAMPLE IMAGE (meta: dithered A becomes the logo) ───────────
@@ -865,6 +1011,8 @@ document.getElementById('load-btn').onclick   = () => document.getElementById('f
 document.getElementById('sample-btn').onclick = loadSample;
 document.getElementById('file-input').onchange = (e) => loadFile(e.target.files[0]);
 document.getElementById('download-btn').onclick = download;
+document.getElementById('copy-btn').onclick = copyToClipboard;
+document.getElementById('random-btn').onclick = randomize;
 
 // mode buttons
 document.querySelectorAll('#modes .btn-cell').forEach(btn => {
@@ -917,6 +1065,7 @@ function bindToggle(id, key) {
 bindToggle('invert-toggle',   'invert');
 bindToggle('scanlines-toggle','scanlines');
 bindToggle('vignette-toggle', 'vignette');
+bindToggle('pfp-toggle',      'pfp');
 
 function updateSliderLabels() {
   document.getElementById('v-th').textContent = state.threshold;
@@ -938,6 +1087,7 @@ function syncUI() {
   document.getElementById('invert-toggle').classList.toggle('on', state.invert);
   document.getElementById('scanlines-toggle').classList.toggle('on', state.scanlines);
   document.getElementById('vignette-toggle').classList.toggle('on', state.vignette);
+  document.getElementById('pfp-toggle').classList.toggle('on', state.pfp);
 }
 
 // ─── DRAG & DROP ────────────────────────────────────────────────
@@ -973,7 +1123,7 @@ window.addEventListener('resize', () => {
 // ─── SOCIALS / CA ───────────────────────────────────────────────
 // EDIT THESE TWO VALUES:
 const CA_ADDRESS = '0x0000000000000000000000000000000000000000';
-const X_HANDLE   = 'useanalog';   // without the @
+const X_HANDLE   = 'YOUR_HANDLE';   // without the @
 
 // wire X link
 document.querySelector('.x-link').href = `https://x.com/${X_HANDLE}`;
