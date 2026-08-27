@@ -378,7 +378,7 @@
   .ca.copied { border-color: var(--hot); }
   .ca.copied .ca-value, .ca.copied .ca-label { color: var(--hot); }
 
-  .x-link {
+  .x-link, .tg-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -390,12 +390,12 @@
     transition: background 0.08s, color 0.08s, border-color 0.08s;
     flex-shrink: 0;
   }
-  .x-link:hover {
+  .x-link:hover, .tg-link:hover {
     background: var(--paper);
     color: var(--bg);
     border-color: var(--paper);
   }
-  .x-link svg { display: block; }
+  .x-link svg, .tg-link svg { display: block; }
 
   /* ─── DROP OVERLAY ─── */
   .drop-overlay {
@@ -479,6 +479,11 @@
       <a class="x-link" href="https://x.com/YOUR_HANDLE" target="_blank" rel="noopener noreferrer" aria-label="Follow ANALOG on X">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      </a>
+      <a class="tg-link" href="https://t.me/useanalog" target="_blank" rel="noopener noreferrer" aria-label="Join ANALOG on Telegram">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M9.417 15.181l-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931L23.93 3.821c.321-1.496-.541-2.081-1.527-1.714L2.298 9.837c-1.474.578-1.457 1.377-.253 1.735l5.239 1.634L19.418 5.72c.566-.377 1.081-.168.658.209z"/>
         </svg>
       </a>
     </div>
@@ -1121,12 +1126,14 @@ window.addEventListener('resize', () => {
 });
 
 // ─── SOCIALS / CA ───────────────────────────────────────────────
-// EDIT THESE TWO VALUES:
-const CA_ADDRESS = '';
-const X_HANDLE   = 'useanalog';   // without the @
+// EDIT THESE THREE VALUES:
+const CA_ADDRESS = '0x0000000000000000000000000000000000000000';
+const X_HANDLE   = 'YOUR_HANDLE';                // without the @
+const TG_URL     = 'https://t.me/useanalog';     // full URL
 
-// wire X link
-document.querySelector('.x-link').href = `https://x.com/${X_HANDLE}`;
+// wire social links
+document.querySelector('.x-link').href  = `https://x.com/${X_HANDLE}`;
+document.querySelector('.tg-link').href = TG_URL;
 
 // display truncated CA
 function formatCA(addr) {
